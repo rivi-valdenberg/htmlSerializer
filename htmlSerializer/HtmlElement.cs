@@ -2,92 +2,118 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace Html_Serializer
 {
     internal class HtmlElement
     {
-        public string? Id { get; set; }
+        public string Id { get; set; }
         public string Name { get; set; }
-        public Dictionary<string, string>? Attributes { get; set; }
-        public List<string>? Classes { get; set; }
-        public string? InnerHtml { get; set; }
-        public HtmlElement? Parent { get; set; }
-        public List<HtmlElement> Children { get; set; }
-
-        public HtmlElement()
-        {
-            Attributes = new Dictionary<string, string>();
-            Classes = new List<string>();
-            Children = new List<HtmlElement>();
-            InnerHtml = "";
-        }
+        public Dictionary<string, string> Attributes { get; set; } = new Dictionary<string, string>();
+        public List<string> Classes { get; set; } = new List<string>();
+        public string InnerHtml { get; set; }
+        public HtmlElement Parent { get; set; }
+        public List<HtmlElement> Children { get; set; } = new List<HtmlElement>();
 
         public IEnumerable<HtmlElement> Descendants()
         {
-            Queue<HtmlElement> q = new Queue<HtmlElement>();
-            q.Enqueue(this);
+            var queue = new Queue<HtmlElement>();
+            queue.Enqueue(this);
 
-            while (q.Count > 0)
+            while (queue.Count > 0)
             {
-                var element = q.Dequeue();
-                yield return element;//מוסיף לרשימה את אלמנט
+                var element = queue.Dequeue();
+                yield return element;
 
                 foreach (var child in element.Children)
                 {
-                    q.Enqueue(child);
+                    queue.Enqueue(child);
                 }
             }
         }
+
         public IEnumerable<HtmlElement> Ancestors()
         {
             var current = this;
-            while (current.Parent != null)
+            while (current != null)
             {
-                yield return current.Parent;
+                yield return current;
                 current = current.Parent;
             }
+
         }
-        public IEnumerable<HtmlElement> QuerySelector(Selector selector)
+
+        public IEnumerable<HtmlElement> FindElementsBySelector(Selector selector)
         {
-            HashSet<HtmlElement> results = new HashSet<HtmlElement>();
-            Search(this, selector, results);
+            var results = new HashSet<HtmlElement>();
+            FindElementsBySelectorRecursive(this, selector, results);
             return results;
         }
 
-        private void Search(HtmlElement element, Selector selector, HashSet<HtmlElement> results)
+        private void FindElementsBySelectorRecursive(HtmlElement element, Selector selector, HashSet<HtmlElement> results)
         {
-            var descendants = element.Descendants();
-            var matchingElements = descendants.Where(el =>
-                                   (selector.TagName == null || el.Name == selector.TagName) &&
-                                   (selector.Id == null || (el.Id != null && el.Id == selector.Id)) &&
-                                   (selector.Classes.Count == 0 || selector.Classes.All(cls => el.Classes.Contains(cls))));
-            if (selector.Child != null)
+            if (selector == null || element == null)
+                return;
+
+            var dece = element.Descendants();
+            foreach (var descendant in dece)
             {
-                matchingElements.ToList().ForEach(match => Search(match, selector.Child, results));
-                //foreach (var match in matchingElements)
-                //{
-                //    Search(match, selector.Child, results);
-                //}
-            }
-            else//הגענו לבן האחרון ולכן אנחנו צריכים להחזיר את הרשימה של המתאימים 
-            {
-                // תנאי עצירה: אם אין סלקטור בן
-                matchingElements.ToList().ForEach(match => results.Add(match));
-                //foreach (var match in matchingElements)
-                //{
-                //    results.Add(match);
-                //}
+                if (MatchesSelector(descendant, selector))
+                {
+                    if (selector.Child == null)
+                    {
+                        results.Add(descendant);
+
+                    }
+                    FindElementsBySelectorRecursive(descendant, selector.Child, results);
+
+                }
             }
         }
 
+        private bool MatchesSelector(HtmlElement element, Selector selector)
+        {
+            var s = "\"" + selector.Id + "\"";
+            if (selector.Id != "" && !s.Equals(element.Id))
+                return false;
+            if (selector.TagName != element.Name)
+                return false;
+
+            foreach (var c in selector.Classes)
+                if (element.Classes.Count > 0 && !element.Classes.Contains(c))
+                    return false;
+            return true;
+        }
+
+        public override string ToString()
+        {
+            StringBuilder stringBuilder = new StringBuilder();
+
+            stringBuilder.AppendLine($"Id: {Id}");
+            stringBuilder.AppendLine($"Name: {Name}");
+            stringBuilder.AppendLine("Attributes:");
+            foreach (var attribute in Attributes)
+            {
+                stringBuilder.AppendLine($"   {attribute.Key}: {attribute.Value}");
+            }
+            stringBuilder.AppendLine("Classes:");
+            foreach (var className in Classes)
+            {
+                stringBuilder.AppendLine($"   {className}");
+            }
+            stringBuilder.AppendLine($"InnerHtml: {InnerHtml}");
+            stringBuilder.AppendLine($"Parent: {Parent?.Id ?? Parent?.Name ?? "null"}"); // Parent might be null
+            stringBuilder.AppendLine("Children:");
+            foreach (var child in Children)
+            {
+                stringBuilder.AppendLine($"   {child.Name ?? child.Id}");
+            }
+
+            return stringBuilder.ToString();
+        }
     }
 }
+
+
